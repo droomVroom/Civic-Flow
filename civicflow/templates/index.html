@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicFlow India - Nationwide Dynamic Gridlock Rescue</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-glass: rgba(22, 27, 34, 0.85);
+            --border-glass: rgba(240, 246, 252, 0.1);
+            --accent-cyan: #58a6ff;
+            --accent-red: #ff7b72;
+            --accent-green: #3fb950;
+            --text-main: #c9d1d9;
+            --text-dim: #8b949e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 380px;
+            max-height: calc(100vh - 40px);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        #map-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(90deg, #58a6ff, #a5d6ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .section-card {
+            background: rgba(33, 38, 45, 0.4);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 10px;
+        }
+
+        label {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        input {
+            width: 100%;
+            background: #161b22;
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        button {
+            width: 100%;
+            background: var(--accent-cyan);
+            color: #0d1117;
+            border: none;
+            padding: 11px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.btn-secondary {
+            background: #21262d;
+            color: var(--text-main);
+            border: 1px solid var(--border-glass);
+        }
+
+        button.btn-secondary:hover {
+            background: #30363d;
+        }
+
+        button.btn-danger {
+            background: var(--accent-red);
+            color: #0d1117;
+        }
+
+        #alert-panel {
+            display: none;
+            background: rgba(255, 123, 114, 0.15);
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 123, 114, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 123, 114, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 123, 114, 0); }
+        }
+
+        .volunteer-list {
+            margin-top: 10px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .volunteer-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            padding: 6px 8px;
+            background: #161b22;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            border: 1px solid var(--border-glass);
+        }
+
+        .pulsing-marker {
+            background: var(--accent-red);
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(255, 123, 114, 0.7);
+            animation: marker-pulse 1.2s infinite;
+        }
+
+        @keyframes marker-pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 123, 114, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(255, 123, 114, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 123, 114, 0); }
+        }
+
+        .popup-btn {
+            background: var(--accent-cyan);
+            color: #0d1117;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 6px;
+            width: 100%;
+            text-align: center;
+        }
+        .popup-btn.btn-danger {
+            background: var(--accent-red);
+        }
+
+        .leaflet-left {
+            left: 410px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h1>🚀 CivicFlow India</h1>
+        <div class="subtitle">Nationwide Gridlock Coordinator</div>
+
+        <div id="alert-panel"></div>
+
+        <div class="section-card">
+            <h3>🗺️ Path Finder</h3>
+            <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px; line-height:1.4;">
+                💡 <em>Click anywhere on the map to set Start/End coordinates and compute real-time routes.</em>
+            </div>
+            
+            <div class="form-group">
+                <label>Start Coordinates</label>
+                <div id="start-coord-val" style="font-size: 12px; font-weight: 600;">Not Selected</div>
+            </div>
+            <div class="form-group">
+                <label>End Coordinates</label>
+                <div id="end-coord-val" style="font-size: 12px; font-weight: 600;">Not Selected</div>
+            </div>
+            
+            <button id="btn-clear-route" class="btn-secondary" style="display: none;">Clear Route</button>
+
+            <div id="route-meta" style="margin-top: 12px; font-size: 12px; display: none; border-top: 1px solid var(--border-glass); padding-top: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: var(--text-dim);">Distance:</span>
+                    <strong id="meta-dist" style="color: var(--accent-cyan);">0 km</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3>volunteer Active Rescue Station</h3>
+            <div id="vol-setup">
+                <div class="form-group">
+                    <label for="vol-name">Your Name</label>
+                    <input type="text" id="vol-name" placeholder="Enter Volunteer Name" value="Anoop Mishra">
+                </div>
+                <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">
+                    💡 <em>You will connect to other rescue coordinators within 100 meters of your center coordinate.</em>
+                </div>
+                <button id="btn-vol-connect" style="background: var(--accent-green); color: #0d1117;">Start Rescuing Here</button>
+            </div>
+            
+            <div id="vol-active" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--accent-green);">● Proximity Session Active</span>
+                    <button id="btn-vol-disconnect" class="btn-danger" style="width: auto; padding: 4px 8px; font-size: 11px;">Leave</button>
+                </div>
+                <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+                    💡 Drag your marker to notify other close volunteers of your traffic-clearing position.
+                </div>
+                <label>Volunteers in your 100m radius</label>
+                <div class="volunteer-list" id="vol-list-container">
+                    <div style="text-align: center; color: var(--text-dim); font-size: 11px; padding: 8px;">No other volunteers active.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        
+        const map = L.map('map').setView([26.4754, 80.3235], 13); 
+
+        const streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        const satelliteBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        const labelsOverlay = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Labels &copy; Esri'
+        });
+
+        const satelliteHybrid = L.layerGroup([satelliteBase, labelsOverlay]);
+
+        streets.addTo(map);
+
+        const baseMaps = {
+            "Street Map": streets,
+            "Satellite (Hybrid)": satelliteHybrid
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+        let startLatLng = null;
+        let endLatLng = null;
+        let startMarker = null;
+        let endMarker = null;
+        let routePolyline = null;
+        let routeOverlays = []; 
+        let globalJamsList = []; 
+
+        let jamMarkers = {}; 
+
+        let socket = null;
+        let myVolunteerMarker = null;
+        let otherVolunteerMarkers = {};
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                map.setView([lat, lon], 14);
+
+                L.circle([lat, lon], {
+                    radius: 100,
+                    color: 'var(--accent-cyan)',
+                    fillOpacity: 0.1
+                }).addTo(map).bindPopup("Your Location");
+            }, err => {
+                console.log("Browser Geolocation denied. Centered on Kanpur default coordinates.");
+            });
+        }
+
+        async function fetchActiveJams() {
+            try {
+                const res = await fetch('/api/jams');
+                const jams = await res.json();
+                globalJamsList = jams; 
+
+                Object.values(jamMarkers).forEach(j => {
+                    if (j.marker) map.removeLayer(j.marker);
+                    if (j.circle) map.removeLayer(j.circle);
+                });
+                jamMarkers = {};
+
+                jams.forEach(jam => {
+                    drawJamMarker(jam);
+                });
+            } catch (err) {
+                console.error("Failed to fetch gridlocks:", err);
+            }
+        }
+
+        function drawJamMarker(jam) {
+            
+            const marker = L.marker([jam.lat, jam.lon], {
+                icon: L.divIcon({
+                    className: 'pulsing-marker',
+                    iconSize: [16, 16]
+                })
+            }).addTo(map);
+
+            const zoneCircle = L.circle([jam.lat, jam.lon], {
+                radius: 150, 
+                color: '#ff7b72',
+                fillColor: '#ff7b72',
+                fillOpacity: 0.3,
+                weight: 2
+            }).addTo(map);
+
+            let popupHtml = 
+                '<strong style="color:var(--accent-red); font-size:12px;">🚨 ACTIVE GRIDLOCK ZONE</strong><br />' +
+                '<span style="font-size:10px; color:var(--text-dim);">Coord: [' + jam.lat.toFixed(4) + ', ' + jam.lon.toFixed(4) + ']</span><br />';
+            if (jam.image_b64) {
+                popupHtml += 
+                    '<div style="margin: 8px 0;">' +
+                    '<label style="font-size:9px; color:var(--text-dim); margin-bottom:2px;">Live Traffic Snapshot:</label>' +
+                    '<img src="' + jam.image_b64 + '" style="width:100%; border-radius:6px; border:1px solid var(--border-glass); max-height: 140px; object-fit: cover;" />' +
+                    '</div>';
+            }
+            popupHtml += '<button class="popup-btn btn-danger" onclick="clearJam(' + jam.lat + ', ' + jam.lon + ')">Clear Gridlock</button>';
+
+            marker.bindPopup(popupHtml);
+            zoneCircle.bindPopup(popupHtml);
+
+            jamMarkers[jam.id] = {
+                marker: marker,
+                circle: zoneCircle
+            };
+        }
+
+        map.on('click', (e) => {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            const popupContent = 
+                '<div style="min-width:160px; font-family:\'Inter\'; text-align:center;">' +
+                '<strong style="font-size:12px; color:var(--text-main);">Coordinates Select</strong><br />' +
+                '<span style="font-size:10px; color:var(--text-dim);">[' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ']</span><br />' +
+                '<button class="popup-btn" onclick="setRoutingPoint(\'start\', ' + lat + ', ' + lon + ')">Set as Origin</button>' +
+                '<button class="popup-btn" onclick="setRoutingPoint(\'end\', ' + lat + ', ' + lon + ')">Set as Destination</button>' +
+                '<hr style="margin: 8px 0; border: none; border-top: 1px solid var(--border-glass);" />' +
+                '<label style="font-size:9px; text-align:left; color:var(--text-dim);">Optional: Upload Live Photo</label>' +
+                '<input type="file" id="jam-image-input" accept="image/*" style="font-size:9px; padding:3px; background:#161b22; border:1px solid var(--border-glass); width:100%; border-radius:4px; margin-bottom:4px;" />' +
+                '<button class="popup-btn btn-danger" onclick="uploadAndReportJam(' + lat + ', ' + lon + ')">Report Gridlock</button>' +
+                '<div id="wiki-ref-photo-box" style="margin-top:10px; border-top:1px dashed var(--border-glass); padding-top:8px; display:none; text-align:left;">' +
+                '<label style="font-size:9px; color:var(--text-dim); margin-bottom:2px;">Landmark Reference:</label>' +
+                '<strong id="wiki-ref-title" style="font-size:11px; color:var(--accent-cyan); display:block; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></strong>' +
+                '<img id="wiki-ref-img" src="" style="width:100%; border-radius:6px; border:1px solid var(--border-glass); max-height:100px; object-fit:cover;" />' +
+                '</div>' +
+                '</div>';
+
+            L.popup()
+                .setLatLng(e.latlng)
+                .setContent(popupContent)
+                .openOn(map);
+
+            fetchWikipediaReferencePhoto(lat, lon);
+        });
+
+        async function fetchWikipediaReferencePhoto(lat, lon) {
+            try {
+                
+                const geosearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lon}&gsradius=1500&gslimit=1&format=json&origin=*`;
+                const res = await fetch(geosearchUrl);
+                const data = await res.json();
+                
+                const geosearch = data?.query?.geosearch;
+                if (geosearch && geosearch.length > 0) {
+                    const pageid = geosearch[0].pageid;
+                    const title = geosearch[0].title;
+
+                    const imgUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=200&pageids=${pageid}&format=json&origin=*`;
+                    const resImg = await fetch(imgUrl);
+                    const dataImg = await resImg.json();
+                    
+                    const page = dataImg?.query?.pages?.[pageid];
+                    const thumbnail = page?.thumbnail?.source;
+                    
+                    if (thumbnail) {
+                        
+                        setTimeout(() => {
+                            const titleEl = document.getElementById('wiki-ref-title');
+                            const imgEl = document.getElementById('wiki-ref-img');
+                            const boxEl = document.getElementById('wiki-ref-photo-box');
+                            
+                            if (titleEl && imgEl && boxEl) {
+                                titleEl.innerText = title;
+                                imgEl.src = thumbnail;
+                                boxEl.style.display = 'block';
+                            }
+                        }, 50);
+                    }
+                }
+            } catch (err) {
+                console.log("No Wikipedia landmark photo found:", err);
+            }
+        }
+
+        function setRoutingPoint(type, lat, lon) {
+            map.closePopup();
+            
+            if (type === 'start') {
+                startLatLng = { lat, lon };
+                document.getElementById('start-coord-val').innerText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                if (startMarker) map.removeLayer(startMarker);
+                startMarker = L.marker([lat, lon]).addTo(map).bindPopup("Origin (Start)");
+            } else {
+                endLatLng = { lat, lon };
+                document.getElementById('end-coord-val').innerText = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                if (endMarker) map.removeLayer(endMarker);
+                endMarker = L.marker([lat, lon]).addTo(map).bindPopup("Destination (End)");
+            }
+
+            if (startLatLng && endLatLng) {
+                calculateOSRMRoute();
+                document.getElementById('btn-clear-route').style.display = 'block';
+            }
+        }
+
+        async function calculateOSRMRoute() {
+            if (!startLatLng || !endLatLng) return;
+            
+            try {
+                const res = await fetch('/api/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_lat: startLatLng.lat,
+                        start_lon: startLatLng.lon,
+                        end_lat: endLatLng.lat,
+                        end_lon: endLatLng.lon
+                    })
+                });
+                
+                const data = await res.json();
+
+                if (routePolyline) {
+                    map.removeLayer(routePolyline);
+                    routePolyline = null;
+                }
+
+                routeOverlays.forEach(l => map.removeLayer(l));
+                routeOverlays = [];
+
+                if (data.status === 'success' && data.coordinates.length > 0) {
+                    
+                    routePolyline = L.polyline(data.coordinates, {
+                        color: 'var(--accent-cyan)',
+                        weight: 5,
+                        opacity: 0.85
+                    }).addTo(map);
+
+                    let redSegments = [];
+                    let currentSegment = [];
+
+                    function isNearAnyJam(lat, lon) {
+                        for (let jam of globalJamsList) {
+                            const dist = calculateDistance(lat, lon, jam.lat, jam.lon);
+                            if (dist <= 0.15) { 
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    data.coordinates.forEach(pt => {
+                        if (isNearAnyJam(pt[0], pt[1])) {
+                            currentSegment.push(pt);
+                        } else {
+                            if (currentSegment.length > 1) {
+                                redSegments.push(currentSegment);
+                            }
+                            currentSegment = [];
+                        }
+                    });
+                    if (currentSegment.length > 1) {
+                        redSegments.push(currentSegment);
+                    }
+
+                    redSegments.forEach(seg => {
+                        const line = L.polyline(seg, {
+                            color: 'var(--accent-red)',
+                            weight: 6,
+                            opacity: 0.95
+                        }).addTo(map);
+                        routeOverlays.push(line);
+                    });
+
+                    document.getElementById('route-meta').style.display = 'block';
+                    document.getElementById('meta-dist').innerText = `${data.distance_km} km`;
+                }
+
+                const alertPanel = document.getElementById('alert-panel');
+                if (data.warnings && data.warnings.length > 0) {
+                    alertPanel.style.display = 'block';
+                    alertPanel.innerHTML = `<strong>⚠️ PATH WARNING:</strong> Gridlock detected on your route! Plan detours manually or coordinate volunteer rescue at coordinates.`;
+                } else {
+                    alertPanel.style.display = 'none';
+                }
+            } catch (err) {
+                console.error("OSRM Routing calculation failed:", err);
+            }
+        }
+
+        function uploadAndReportJam(lat, lon) {
+            const fileInput = document.getElementById('jam-image-input');
+            const file = fileInput ? fileInput.files[0] : null;
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    sendJamReport(lat, lon, e.target.result);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                sendJamReport(lat, lon, null);
+            }
+        }
+
+        async function sendJamReport(lat, lon, image_b64) {
+            map.closePopup();
+            try {
+                await fetch('/api/report_jam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat, lon, status: 'blocked', image_b64: image_b64 })
+                });
+                fetchActiveJams();
+                if (startLatLng && endLatLng) {
+                    calculateOSRMRoute();
+                }
+            } catch (err) {
+                console.error("Failed to report jam:", err);
+            }
+        }
+
+        async function clearJam(lat, lon) {
+            map.closePopup();
+            try {
+                await fetch('/api/report_jam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat, lon, status: 'clear' })
+                });
+                fetchActiveJams();
+                if (startLatLng && endLatLng) {
+                    calculateOSRMRoute();
+                }
+            } catch (err) {
+                console.error("Failed to clear jam:", err);
+            }
+        }
+
+        document.getElementById('btn-clear-route').addEventListener('click', () => {
+            if (startMarker) map.removeLayer(startMarker);
+            if (endMarker) map.removeLayer(endMarker);
+            if (routePolyline) map.removeLayer(routePolyline);
+
+            routeOverlays.forEach(l => map.removeLayer(l));
+            routeOverlays = [];
+
+            startLatLng = null;
+            endLatLng = null;
+            startMarker = null;
+            endMarker = null;
+            routePolyline = null;
+
+            document.getElementById('start-coord-val').innerText = 'Not Selected';
+            document.getElementById('end-coord-val').innerText = 'Not Selected';
+            document.getElementById('route-meta').style.display = 'none';
+            document.getElementById('alert-panel').style.display = 'none';
+            document.getElementById('btn-clear-route').style.display = 'none';
+        });
+
+        function connectVolunteerSession() {
+            const name = document.getElementById('vol-name').value.trim();
+            if (!name) {
+                alert("Please enter a volunteer name.");
+                return;
+            }
+
+            const mapCenter = map.getCenter();
+            const startLat = mapCenter.lat;
+            const startLon = mapCenter.lng;
+
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const wsUrl = protocol + "//" + window.location.host + "/ws/rescue";
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                
+                socket.send(JSON.stringify({
+                    type: "register",
+                    name: name,
+                    lat: startLat,
+                    lon: startLon
+                }));
+
+                document.getElementById('vol-setup').style.display = 'none';
+                document.getElementById('vol-active').style.display = 'block';
+
+                myVolunteerMarker = L.marker([startLat, startLon], {
+                    draggable: true,
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                }).addTo(map);
+
+                myVolunteerMarker.bindPopup("<strong>You (" + name + ")</strong><br />Status: Directing Traffic").openPopup();
+
+                myVolunteerMarker.on('dragend', () => {
+                    const pos = myVolunteerMarker.getLatLng();
+                    socket.send(JSON.stringify({
+                        type: "update",
+                        name: name,
+                        lat: pos.lat,
+                        lon: pos.lng
+                    }));
+                });
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'volunteer_sync') {
+                    syncOtherVolunteers(data.volunteers);
+                }
+            };
+
+            socket.onclose = () => {
+                disconnectVolunteerUI();
+            };
+        }
+
+        function disconnectVolunteerSession() {
+            if (socket) {
+                socket.close();
+            }
+        }
+
+        function disconnectVolunteerUI() {
+            
+            if (myVolunteerMarker) {
+                map.removeLayer(myVolunteerMarker);
+                myVolunteerMarker = null;
+            }
+
+            Object.values(otherVolunteerMarkers).forEach(m => map.removeLayer(m));
+            otherVolunteerMarkers = {};
+
+            document.getElementById('vol-setup').style.display = 'block';
+            document.getElementById('vol-active').style.display = 'none';
+            socket = null;
+        }
+
+        function syncOtherVolunteers(volunteers) {
+            const listContainer = document.getElementById('vol-list-container');
+            listContainer.innerHTML = '';
+
+            const currentIds = new Set(volunteers.map(v => v.id));
+            Object.keys(otherVolunteerMarkers).forEach(vid => {
+                if (!currentIds.has(vid)) {
+                    map.removeLayer(otherVolunteerMarkers[vid]);
+                    delete otherVolunteerMarkers[vid];
+                }
+            });
+
+            if (volunteers.length <= 1) {
+                listContainer.innerHTML = '<div style="text-align: center; color: var(--text-dim); font-size: 11px; padding: 8px;">No other volunteers active in your 100m zone.</div>';
+            }
+
+            volunteers.forEach(v => {
+                
+                const isMe = myVolunteerMarker && myVolunteerMarker.getLatLng().lat.toFixed(5) === v.lat.toFixed(5);
+                
+                const row = document.createElement('div');
+                row.className = 'volunteer-item';
+                row.innerHTML = 
+                    '<span class="volunteer-name">' +
+                    '<span style="color: ' + (isMe ? 'var(--accent-green)' : 'var(--accent-cyan)') + '; font-size:10px;">●</span> ' +
+                    v.name + (isMe ? ' (You)' : '') +
+                    '</span> ' +
+                    '<span style="font-size:10px; color:var(--text-dim);">[' + v.lat.toFixed(4) + ', ' + v.lon.toFixed(4) + ']</span>';
+                listContainer.appendChild(row);
+
+                if (isMe) return; 
+
+                if (otherVolunteerMarkers[v.id]) {
+                    otherVolunteerMarkers[v.id].setLatLng([v.lat, v.lon]);
+                } else {
+                    const marker = L.marker([v.lat, v.lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup("<strong>Volunteer: " + v.name + "</strong><br />Directing Traffic");
+                    otherVolunteerMarkers[v.id] = marker;
+                }
+            });
+        }
+
+        document.getElementById('btn-vol-connect').addEventListener('click', connectVolunteerSession);
+        document.getElementById('btn-vol-disconnect').addEventListener('click', disconnectVolunteerSession);
+
+        fetchActiveJams();
+    </script>
+</body>
+</html>
